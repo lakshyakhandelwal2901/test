@@ -1,0 +1,5 @@
+Date,Description,Amount,Reference
+12/01/2026,"Payment from Acme Corporation",5500.00,INV-001
+13/01/2026,"Transfer - TechStart",2300.50,TXN-12345
+14/01/2026,"Deposit - Global Industries",8750.00,REF-98765
+15/01/2026,"Payment received",3200.00,CHQ-445566

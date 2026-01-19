@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  invoices  Invoice[]
+  clients   Client[]
+
+  @@map("users")
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  name      String
+  email     String
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+
+  @@map("clients")
+}
+
+model Invoice {
+  id             Int      @id @default(autoincrement())
+  invoiceNumber  String   @map("invoice_number")
+  userId         Int      @map("user_id")
+  clientId       Int      @map("client_id")
+  issue_date     DateTime @map("issue_date")
+  due_date       DateTime @map("due_date")
+  status         String   @default("Sent")
+  subtotal       Float
+  gst            Float    @default(0)
+  discount       Float    @default(0)
+  total          Float
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items          InvoiceItem[]
+  payments       Payment[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int     @map("invoice_id")
+  description String
+  quantity    Float
+  rate        Float
+  amount      Float
+  
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Payment {
+  id           Int      @id @default(autoincrement())
+  invoiceId    Int      @map("invoice_id")
+  amount_paid  Float    @map("amount_paid")
+  payment_date DateTime @map("payment_date")
+  payment_mode String   @map("payment_mode")
+  
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
