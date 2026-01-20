@@ -16,7 +16,6 @@ const app = express()
 const PORT = process.env.PORT || 5000
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const distPath = path.join(__dirname, '../client/dist')
 
 // Middleware
 app.use(cors())
@@ -30,16 +29,10 @@ app.use('/api/payments', paymentRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/transactions', transactionRoutes)
 
-// Serve built frontend
-app.use(express.static(distPath))
-app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'))
-})
-
-// Root route
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+// API root for quick info
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'OK',
     message: 'Invoice Management API',
     endpoints: {
       health: '/api/health',
@@ -55,6 +48,13 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Invoice API is running' })
+})
+
+// Serve built frontend (for Electron/production)
+const distPath = path.join(__dirname, '../client/dist')
+app.use(express.static(distPath))
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'))
 })
 
 // Error handling middleware
