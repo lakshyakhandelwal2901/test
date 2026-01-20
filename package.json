@@ -1,0 +1,28 @@
+{
+  "name": "invoice-electron",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev:electron": "electron .",
+    "build:electron": "electron-builder",
+    "postinstall": "cd server && npm install && cd ../client && npm install"
+  },
+  "build": {
+    "appId": "com.invoice.app",
+    "productName": "InvoiceApp",
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "server/**/*",
+      "client/dist/**/*",
+      "main.js",
+      "package.json"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1"
+  }
+}
