@@ -3,26 +3,24 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { calculateItemAmount, calculateSubtotal, calculateTotal } from '../utils/calculations'
 
 const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
-  const [clientSearch, setClientSearch] = useState('')
-  const [showClientDropdown, setShowClientDropdown] = useState(false)
-  const [selectedClient, setSelectedClient] = useState(
-    initialData?.client_id ? clients.find(c => c.id === parseInt(initialData.client_id)) : null
-  )
   const [templateStyle, setTemplateStyle] = useState(
     localStorage.getItem('invoiceTemplate') || 'standard'
   )
-  const [showTemplatePreview, setShowTemplatePreview] = useState(false)
-  const dropdownRef = useRef(null)
 
-  const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
+  const { register, control, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: initialData || {
       invoice_number: '',
-      client_id: '',
+      consignee_name: '',
+      consignee_address: '',
+      consignee_contact: '',
+      buyer_name: '',
+      buyer_address: '',
+      buyer_contact: '',
       issue_date: new Date().toISOString().split('T')[0],
       due_date: '',
       gst: 0,
       discount: 0,
-      items: [{ description: '', quantity: 1, rate: 0 }]
+      items: [{ description: '', quantity: 1, rate: 0, hsn: '7116' }]
     }
   })
 
@@ -38,91 +36,18 @@ const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
   const subtotal = calculateSubtotal(items)
   const total = calculateTotal(subtotal, gst, discount)
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-    client.email.toLowerCase().includes(clientSearch.toLowerCase())
-  )
 
-  const handleClientSelect = (client) => {
-    setSelectedClient(client)
-    setValue('client_id', client.id)
-    setClientSearch(client.name)
-    setShowClientDropdown(false)
-  }
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowClientDropdown(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Invoice Number</label>
+          <label className="block text-sm font-medium text-gray-700">Invoice Number (Optional)</label>
           <input
-            {...register('invoice_number', { required: 'Invoice number is required' })}
+            {...register('invoice_number')}
+            placeholder="Leave blank for auto-generation"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
           />
-          {errors.invoice_number && <p className="mt-1 text-sm text-red-600">{errors.invoice_number.message}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Client</label>
-          <div className="relative mt-1" ref={dropdownRef}>
-            <input
-              type="text"
-              value={selectedClient ? selectedClient.name : clientSearch}
-              onChange={(e) => {
-                setClientSearch(e.target.value)
-                setShowClientDropdown(true)
-                if (!e.target.value) {
-                  setSelectedClient(null)
-                  setValue('client_id', '')
-                }
-              }}
-              onFocus={() => setShowClientDropdown(true)}
-              placeholder="Search for a client..."
-              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            <input
-              type="hidden"
-              {...register('client_id', { required: 'Client is required' })}
-            />
-            
-            {showClientDropdown && filteredClients.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                {filteredClients.map(client => (
-                  <div
-                    key={client.id}
-                    onClick={() => handleClientSelect(client)}
-                    className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-indigo-600 hover:text-white"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{client.name}</span>
-                      <span className="text-xs opacity-75">{client.email}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {showClientDropdown && clientSearch && filteredClients.length === 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-2 px-3 text-sm text-gray-500">
-                No clients found
-              </div>
-            )}
-          </div>
-          {errors.client_id && <p className="mt-1 text-sm text-red-600">{errors.client_id.message}</p>}
         </div>
 
         <div>
@@ -146,12 +71,76 @@ const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
         </div>
       </div>
 
+      {/* Consignee Section */}
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">CONSIGNEE (SHIP TO)</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <input
+              {...register('consignee_name', { required: 'Consignee name is required' })}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.consignee_name && <p className="mt-1 text-sm text-red-600">{errors.consignee_name.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Contact Number</label>
+            <input
+              {...register('consignee_contact', { required: 'Contact is required' })}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.consignee_contact && <p className="mt-1 text-sm text-red-600">{errors.consignee_contact.message}</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700">Address</label>
+            <textarea
+              {...register('consignee_address', { required: 'Address is required' })}
+              rows={3}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.consignee_address && <p className="mt-1 text-sm text-red-600">{errors.consignee_address.message}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Buyer Section */}
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">BUYER (BILL TO)</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <input
+              {...register('buyer_name', { required: 'Buyer name is required' })}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.buyer_name && <p className="mt-1 text-sm text-red-600">{errors.buyer_name.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Contact Number</label>
+            <input
+              {...register('buyer_contact', { required: 'Contact is required' })}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.buyer_contact && <p className="mt-1 text-sm text-red-600">{errors.buyer_contact.message}</p>}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700">Address</label>
+            <textarea
+              {...register('buyer_address', { required: 'Address is required' })}
+              rows={3}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            {errors.buyer_address && <p className="mt-1 text-sm text-red-600">{errors.buyer_address.message}</p>}
+          </div>
+        </div>
+      </div>
+
       <div>
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">Items</h3>
           <button
             type="button"
-            onClick={() => append({ description: '', quantity: 1, rate: 0 })}
+            onClick={() => append({ description: '', quantity: 1, rate: 0, hsn: '7116' })}
             className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
           >
             Add Item
@@ -161,7 +150,7 @@ const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
         <div className="space-y-4">
           {fields.map((field, index) => (
             <div key={field.id} className="grid grid-cols-12 gap-4 items-start">
-              <div className="col-span-5">
+              <div className="col-span-4">
                 <input
                   {...register(`items.${index}.description`, { required: 'Description is required' })}
                   placeholder="Description"
@@ -169,6 +158,15 @@ const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
                 />
               </div>
               <div className="col-span-2">
+                <select
+                  {...register(`items.${index}.hsn`, { required: true })}
+                  className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="7116">7116</option>
+                  <option value="7117">7117</option>
+                </select>
+              </div>
+              <div className="col-span-1">
                 <input
                   type="number"
                   step="0.01"
@@ -307,7 +305,7 @@ const InvoiceForm = ({ initialData, clients, onSubmit, onCancel }) => {
           type="submit"
           className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
         >
-          Save Invoice
+          {initialData?.id ? 'Update Invoice' : 'Save Invoice'}
         </button>
       </div>
     </form>

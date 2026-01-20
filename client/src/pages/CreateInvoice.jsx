@@ -38,12 +38,18 @@ const CreateInvoice = () => {
       console.log('Submitting invoice data:', data)
       setError('')
       
+      // Set status based on button clicked
+      const dataWithStatus = {
+        ...data,
+        status: markAsPaid ? 'Paid' : 'Sent'
+      }
+      
       let invoiceId
       if (id) {
-        await updateInvoice(id, data)
+        await updateInvoice(id, dataWithStatus)
         invoiceId = id
       } else {
-        const response = await createInvoice(data)
+        const response = await createInvoice(dataWithStatus)
         invoiceId = response.data.id
       }
 

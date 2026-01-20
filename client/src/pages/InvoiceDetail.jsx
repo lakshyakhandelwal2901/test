@@ -201,14 +201,32 @@ const InvoiceDetail = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-3 gap-8">
+            {/* Consignee */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Bill To:</h3>
-              <p className="text-gray-900 font-medium">{invoice.client?.name}</p>
-              <p className="text-gray-600">{invoice.client?.email}</p>
-              {invoice.client?.phone && <p className="text-gray-600">{invoice.client?.phone}</p>}
-              {invoice.client?.address && <p className="text-gray-600">{invoice.client?.address}</p>}
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">CONSIGNEE (SHIP TO):</h3>
+              <p className="text-gray-900 font-medium">{invoice.consignee_name || invoice.client?.name || 'N/A'}</p>
+              {(invoice.consignee_address || invoice.client?.address) && (
+                <p className="text-gray-600">{invoice.consignee_address || invoice.client?.address}</p>
+              )}
+              {(invoice.consignee_contact || invoice.client?.phone) && (
+                <p className="text-gray-600">{invoice.consignee_contact || invoice.client?.phone}</p>
+              )}
             </div>
+
+            {/* Buyer */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">BUYER (BILL TO):</h3>
+              <p className="text-gray-900 font-medium">{invoice.buyer_name || invoice.client?.name || 'N/A'}</p>
+              {(invoice.buyer_address || invoice.client?.address) && (
+                <p className="text-gray-600">{invoice.buyer_address || invoice.client?.address}</p>
+              )}
+              {(invoice.buyer_contact || invoice.client?.phone) && (
+                <p className="text-gray-600">{invoice.buyer_contact || invoice.client?.phone}</p>
+              )}
+            </div>
+
+            {/* Dates */}
             <div className="text-right">
               <div className="mb-2">
                 <p className="text-sm text-gray-600">Invoice Date</p>
@@ -228,6 +246,7 @@ const InvoiceDetail = () => {
             <thead>
               <tr className="border-b">
                 <th className="text-left py-3 px-4 font-semibold text-gray-900">Description</th>
+                <th className="text-center py-3 px-4 font-semibold text-gray-900">HSN/SAC</th>
                 <th className="text-center py-3 px-4 font-semibold text-gray-900">Qty</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Rate</th>
                 <th className="text-right py-3 px-4 font-semibold text-gray-900">Amount</th>
@@ -237,6 +256,7 @@ const InvoiceDetail = () => {
               {invoice.items?.map((item) => (
                 <tr key={item.id} className="border-b">
                   <td className="py-3 px-4 text-gray-900">{item.description}</td>
+                  <td className="text-center py-3 px-4 text-gray-900">{item.hsn || '---'}</td>
                   <td className="text-center py-3 px-4 text-gray-900">{item.quantity}</td>
                   <td className="text-right py-3 px-4 text-gray-900">{formatCurrency(item.rate)}</td>
                   <td className="text-right py-3 px-4 text-gray-900">{formatCurrency(item.amount)}</td>

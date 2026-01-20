@@ -1,341 +1,366 @@
-import jsPDF from 'jspdf';
-import { formatCurrencyForPDF, formatDate } from './calculations';
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { formatCurrencyForPDF, formatDate, convertNumberToWords } from './calculations'
 
-/**
- * Generate PDF invoice using custom template based on Sri Ram Gems format
- */
-export const generateCustomInvoicePDF = (invoice, payments = [], companyInfo = null) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+export const generateCustomInvoicePDF = (invoice) => {
+  const doc = new jsPDF('p', 'mm', 'a4')
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 5
+  const footerSpace = 6
+  const maxContentHeight = pageHeight - margin - footerSpace
   
-  // Get company info from localStorage if not provided
-  if (!companyInfo) {
-    const savedInfo = localStorage.getItem('companyInfo');
-    if (savedInfo) {
-      companyInfo = JSON.parse(savedInfo);
-    }
-  }
-  
-  // Default company info
+  let yPos = margin
+  // Get company info from localStorage
+  const companyInfo = JSON.parse(localStorage.getItem('companyInfo') || '{}')
+
   const company = {
-    name: companyInfo?.name || 'YOUR COMPANY NAME',
-    address: companyInfo?.address || 'Your Address Line 1\nYour Address Line 2\nCity, State - Pincode',
-    gst: companyInfo?.gst ? `GST NO: ${companyInfo.gst}` : 'GST NO: XXXXXXXXXXXX',
-    mobile: companyInfo?.mobile ? `MOBILE: ${companyInfo.mobile}` : 'MOBILE: +91 XXXXXXXXXX',
-    email: companyInfo?.email || 'email@company.com',
-    pan: companyInfo?.pan ? `PAN: ${companyInfo.pan}` : 'PAN: XXXXXXXXXX'
-  };
-
-  let yPos = 15;
-
-  // Header - TAX INVOICE
-  doc.setFontSize(20);
-  doc.setFont(undefined, 'bold');
-  doc.text('TAX INVOICE', pageWidth / 2, yPos, { align: 'center' });
-  
-  yPos += 10;
-  doc.setDrawColor(0);
-  doc.line(15, yPos, pageWidth - 15, yPos);
-  
-  yPos += 8;
-
-  // Company Details (Left side)
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text(company.name, 15, yPos);
-  
-  yPos += 6;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
-  const addressLines = company.address.split('\n');
-  addressLines.forEach(line => {
-    doc.text(line, 15, yPos);
-    yPos += 5;
-  });
-  
-  doc.setFont(undefined, 'bold');
-  doc.text(company.gst, 15, yPos);
-  yPos += 5;
-  doc.text(company.mobile, 15, yPos);
-  yPos += 5;
-  doc.text(`E-Mail: ${company.email}`, 15, yPos);
-
-  // Invoice Details (Right side)
-  const rightX = pageWidth - 70;
-  let rightY = 38;
-  
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  doc.text('Invoice No.', rightX, rightY);
-  doc.setFont(undefined, 'normal');
-  doc.text(invoice.invoiceNumber, rightX + 25, rightY);
-  
-  rightY += 6;
-  doc.setFont(undefined, 'bold');
-  doc.text('Dated', rightX, rightY);
-  doc.setFont(undefined, 'normal');
-  doc.text(formatDate(invoice.issue_date), rightX + 25, rightY);
-
-  yPos = Math.max(yPos, rightY) + 10;
-  
-  // Horizontal line
-  doc.setDrawColor(0);
-  doc.line(15, yPos, pageWidth - 15, yPos);
-  yPos += 8;
-
-  // Bill To Section
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'bold');
-  doc.text('BUYER (BILL TO)', 15, yPos);
-  
-  yPos += 6;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  doc.text(invoice.client?.name || 'Client Name', 15, yPos);
-  
-  yPos += 5;
-  doc.setFont(undefined, 'normal');
-  if (invoice.client?.address) {
-    const clientAddressLines = invoice.client.address.split('\n');
-    clientAddressLines.forEach(line => {
-      doc.text(line, 15, yPos);
-      yPos += 5;
-    });
-  }
-  
-  if (invoice.client?.phone) {
-    doc.text(`CONTACT: ${invoice.client.phone}`, 15, yPos);
-    yPos += 5;
-  }
-  
-  if (invoice.client?.email) {
-    doc.text(`Email: ${invoice.client.email}`, 15, yPos);
-    yPos += 5;
+    name: companyInfo.companyName || 'SRI RAM GEMS',
+    address: companyInfo.address || '36,37 , LAXMI VIHAR COLONY\nNEAR SUNIL HOSPITAL\nNAYLA ROAD\nKANOTA:- 303012',
+    gstin: companyInfo.gstin || '08AGNPK3532E1ZH',
+    mobile: companyInfo.mobile || '+91 9928151922',
+    email: companyInfo.email || 'shriramgems@yahoo.com',
+    pan: companyInfo.pan || 'AGNPK3532E'
   }
 
-  yPos += 5;
-  doc.setDrawColor(0);
-  doc.line(15, yPos, pageWidth - 15, yPos);
-  yPos += 8;
+  const consignee = {
+    name: invoice.consignee_name || invoice.client?.name || 'Consignee Name',
+    address: invoice.consignee_address || invoice.client?.address || 'Address not provided',
+    contact: invoice.consignee_contact || invoice.client?.phone || 'Contact not provided'
+  }
 
-  // Items Table Header
-  const tableStartY = yPos;
-  const colWidths = {
-    sno: 15,
-    description: 70,
-    hsn: 25,
-    quantity: 25,
-    rate: 25,
-    amount: 30
-  };
-  
-  let xPos = 15;
-  
-  // Header background
-  doc.setFillColor(240, 240, 240);
-  doc.rect(15, yPos - 6, pageWidth - 30, 8, 'F');
-  
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  
-  doc.text('S.NO', xPos + 2, yPos);
-  xPos += colWidths.sno;
-  
-  doc.text('Description of Goods', xPos + 2, yPos);
-  xPos += colWidths.description;
-  
-  doc.text('HSN/SAC', xPos + 2, yPos);
-  xPos += colWidths.hsn;
-  
-  doc.text('Quantity', xPos + 2, yPos);
-  xPos += colWidths.quantity;
-  
-  doc.text('Rate', xPos + 2, yPos);
-  xPos += colWidths.rate;
-  
-  doc.text('Amount', xPos + 2, yPos);
-  
-  yPos += 8;
-  doc.setDrawColor(200);
-  doc.line(15, yPos - 2, pageWidth - 15, yPos - 2);
+  const buyer = {
+    name: invoice.buyer_name || invoice.client?.name || 'Buyer Name',
+    address: invoice.buyer_address || invoice.client?.address || 'Address not provided',
+    contact: invoice.buyer_contact || invoice.client?.phone || 'Contact not provided'
+  }
 
-  // Items
-  doc.setFont(undefined, 'normal');
-  invoice.items?.forEach((item, index) => {
-    if (yPos > pageHeight - 40) {
-      doc.addPage();
-      yPos = 20;
+  // ===== TITLE =====
+  doc.setFontSize(22)
+  doc.setFont(undefined, 'bold')
+  doc.text('TAX INVOICE', pageWidth / 2, yPos + 6, { align: 'center' })
+  yPos += 10
+
+  const usableWidth = pageWidth - margin * 2
+  const leftWidth = usableWidth * 0.48
+  const rightWidth = usableWidth - leftWidth
+  const leftX = margin
+  const rightX = leftX + leftWidth
+
+  const topStartY = yPos
+  let leftY = topStartY + 6
+  const sectionSplitLines = []
+
+  // Company block
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(10.5)
+  doc.text((company.name || '').toUpperCase(), leftX + 2, leftY)
+  leftY += 5
+
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8.6)
+  const companyLines = [
+    ...company.address.split('\n'),
+    `GST NO:- ${company.gstin}`,
+    `MOBILE:- ${company.mobile}`,
+    `E-Mail :- ${company.email}`
+  ]
+  companyLines.forEach(line => {
+    const wrapped = doc.splitTextToSize(line, leftWidth - 8)
+    wrapped.forEach(wLine => {
+      doc.text(wLine, leftX + 2, leftY)
+      leftY += 4
+    })
+  })
+  leftY += 2
+  sectionSplitLines.push(leftY)
+
+  // Consignee block
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(9)
+  doc.text('CONSIGNEE (SHIP TO)', leftX + 2, leftY + 4)
+  leftY += 9
+
+  doc.text('TO', leftX + 2, leftY)
+  leftY += 4
+
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8.6)
+  const consigneeAddressLines = (consignee.address || 'Address not provided')
+    .split('\n')
+    .flatMap(line => doc.splitTextToSize(line, leftWidth - 8))
+  const consigneeLines = [
+    (consignee.name || 'Consignee Name').toUpperCase(),
+    ...consigneeAddressLines,
+    `CONTACT :- ${consignee.contact || 'Not provided'}`
+  ]
+  consigneeLines.forEach(line => {
+    doc.text(line, leftX + 2, leftY)
+    leftY += 4
+  })
+  leftY += 2
+  sectionSplitLines.push(leftY)
+
+  // Buyer block
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(9)
+  doc.text('BUYER (BILL TO)', leftX + 2, leftY + 4)
+  leftY += 9
+
+  doc.text('TO', leftX + 2, leftY)
+  leftY += 4
+
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8.6)
+  const buyerAddressLines = (buyer.address || 'Address not provided')
+    .split('\n')
+    .flatMap(line => doc.splitTextToSize(line, leftWidth - 8))
+  const buyerLines = [
+    (buyer.name || 'Buyer Name').toUpperCase(),
+    ...buyerAddressLines,
+    `CONTACT :- ${buyer.contact || 'Not provided'}`
+  ]
+  buyerLines.forEach(line => {
+    doc.text(line, leftX + 2, leftY)
+    leftY += 4
+  })
+  leftY += 3
+
+  const leftBlockHeight = leftY - topStartY 
+
+  // ===== RIGHT BLOCK - Invoice meta grid =====
+  let rightY = topStartY
+  const rowHalf = rightWidth / 2
+
+  doc.setFontSize(8.5)
+  doc.setFont(undefined, 'bold')
+
+  const rightRows = [
+    { l: 'Invoice No.', lv: invoice.invoiceNumber || '', r: 'Dated', rv: formatDate(invoice.issue_date), h: 8 },
+    { l: 'Delivery Note', lv: '', r: 'Mode/Terms of Payment', rv: '', h: 7 },
+    { l: 'Reference No. & Date.', lv: '', r: 'Other References', rv: '', h: 7 },
+    { l: "Buyer's Order No.", lv: '', r: 'Dated', rv: formatDate(invoice.due_date), h: 7 },
+    { l: 'Dispatch Doc No.', lv: '', r: 'Delivery Note Date', rv: '', h: 7 },
+    { l: 'Dispatched Through', lv: '', r: 'Destination', rv: '', h: 7 }
+  ]
+
+  rightRows.forEach((row, idx) => {
+    doc.rect(rightX, rightY, rowHalf, row.h)
+    doc.rect(rightX + rowHalf, rightY, rowHalf, row.h)
+
+    doc.setFont(undefined, 'bold')
+    doc.text(row.l, rightX + 2, rightY + 5)
+
+    doc.setFont(undefined, 'normal')
+    doc.text(row.lv || '', rightX + rowHalf - 2, rightY + 5, { align: 'right' })
+
+    doc.setFont(undefined, 'bold')
+    doc.text(row.r, rightX + rowHalf + 2, rightY + 5)
+
+    if (row.r === 'Dated' && idx === 0) {
+      doc.setFontSize(12)
+      doc.text(row.rv || '', rightX + rightWidth - 2, rightY + 6, { align: 'right' })
+      doc.setFontSize(8.5)
+    } else {
+      doc.setFont(undefined, 'normal')
+      doc.text(row.rv || '', rightX + rightWidth - 2, rightY + 5, { align: 'right' })
     }
-    
-    xPos = 15;
-    
-    doc.text(String(index + 1), xPos + 2, yPos);
-    xPos += colWidths.sno;
-    
-    doc.text(item.description.substring(0, 35), xPos + 2, yPos);
-    xPos += colWidths.description;
-    
-    // Use HSN if available, otherwise use a default or leave blank
-    doc.text(item.hsn || item.hsnCode || '---', xPos + 2, yPos);
-    xPos += colWidths.hsn;
-    
-    doc.text(`${item.quantity}`, xPos + 2, yPos);
-    xPos += colWidths.quantity;
-    
-    doc.text(formatCurrencyForPDF(item.rate), xPos + 2, yPos);
-    xPos += colWidths.rate;
-    
-    doc.text(formatCurrencyForPDF(item.amount), xPos + 2, yPos);
-    
-    yPos += 7;
-  });
 
-  // Tax row if applicable
-  if (invoice.gst > 0) {
-    xPos = 15 + colWidths.sno;
-    const gstAmount = (invoice.subtotal - invoice.discount) * (invoice.gst / 100);
-    doc.setFont(undefined, 'italic');
-    doc.text(`GST/IGST @ ${invoice.gst}%`, xPos + 2, yPos);
-    xPos = pageWidth - 45;
-    doc.text(formatCurrencyForPDF(gstAmount), xPos + 2, yPos);
-    yPos += 7;
-  }
+    rightY += row.h
+    doc.setFont(undefined, 'bold')
+  })
 
-  // Total line
-  yPos += 2;
-  doc.setDrawColor(0);
-  doc.line(15, yPos, pageWidth - 15, yPos);
-  yPos += 7;
+  const termsHeight = 35
+  doc.rect(rightX, rightY, rightWidth, termsHeight)
+  doc.setFont(undefined, 'bold')
+  doc.text('Terms of Delivery', rightX + 2, rightY + 6)
+  rightY += termsHeight
 
-  // Total
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.text('TOTAL', 15 + colWidths.sno + 2, yPos);
-  doc.text(formatCurrencyForPDF(invoice.total), pageWidth - 45 + 2, yPos);
+  const rightBlockHeight = rightY - topStartY
 
-  yPos += 10;
-  doc.setDrawColor(0);
-  doc.line(15, yPos, pageWidth - 15, yPos);
-  yPos += 8;
+  // ===== OUTER BORDER =====
+  const topBlockHeight = Math.max(leftBlockHeight, rightBlockHeight)
+  doc.rect(leftX, topStartY, leftWidth, topBlockHeight)
+  doc.rect(rightX, topStartY, rightWidth, topBlockHeight)
+  sectionSplitLines.forEach(lineY => {
+    doc.line(leftX, lineY, leftX + leftWidth, lineY)
+  })
 
-  // Amount in words
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'bold');
-  doc.text('Amount Chargeable (in words)', 15, yPos);
-  yPos += 5;
-  doc.setFont(undefined, 'normal');
-  const amountInWords = numberToWords(invoice.total);
-  doc.text(`INR ${amountInWords} ONLY`, 15, yPos);
+  yPos = topStartY + topBlockHeight + 4
 
-  yPos += 10;
-
-  // Tax breakdown section if gst > 0
-  if (invoice.gst > 0) {
-    const gstAmount = (invoice.subtotal - invoice.discount) * (invoice.gst / 100);
-    
-    doc.setDrawColor(200);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    yPos += 8;
-    
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'bold');
-    doc.text('Taxable Value', 15, yPos);
-    doc.text('GST Rate', 80, yPos);
-    doc.text('GST Amount', 130, yPos);
-    
-    yPos += 6;
-    doc.setFont(undefined, 'normal');
-    doc.text(formatCurrencyForPDF(invoice.subtotal - invoice.discount), 15, yPos);
-    doc.text(`${invoice.gst}%`, 80, yPos);
-    doc.text(formatCurrencyForPDF(gstAmount), 130, yPos);
-    
-    yPos += 8;
-    doc.setFont(undefined, 'italic');
-    doc.text(`GST Amount (in words): INR ${numberToWords(gstAmount)} ONLY`, 15, yPos);
-    
-    yPos += 10;
-  }
-
-  // Footer section
-  const footerY = pageHeight - 40;
-  
-  // Declaration
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'bold');
-  doc.text('Declaration:', 15, footerY);
-  doc.setFont(undefined, 'normal');
-  doc.text('We declare that this invoice shows the actual price of the', 15, footerY + 4);
-  doc.text('goods described and that all particulars are true and correct.', 15, footerY + 8);
-
-  // Signature section
-  doc.setFont(undefined, 'bold');
-  doc.text(`For ${company.name}`, pageWidth - 70, footerY);
-  
-  doc.line(pageWidth - 70, footerY + 15, pageWidth - 20, footerY + 15);
-  doc.text('Authorised Signatory', pageWidth - 70, footerY + 20);
-
-  // Company PAN
-  doc.setFontSize(7);
-  doc.setFont(undefined, 'normal');
-  doc.text(company.pan, 15, footerY + 15);
-
-  // Computer generated invoice
-  doc.setFontSize(7);
-  doc.setFont(undefined, 'italic');
-  doc.text('THIS IS A COMPUTER GENERATED INVOICE', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-  return doc;
-};
-
-// Helper function to convert number to words (simplified)
-function numberToWords(num) {
-  if (num === 0) return 'ZERO';
-  
-  const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
-  const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
-  const teens = ['TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
-  
-  const numStr = Math.floor(num).toString();
-  const len = numStr.length;
-  
-  let words = '';
-  
-  // Lakhs
-  if (len > 5) {
-    const lakhs = parseInt(numStr.substring(0, len - 5));
-    if (lakhs > 0) {
-      words += convertTwoDigits(lakhs, ones, tens, teens) + ' LAKH ';
+  // ===== ITEMS TABLE =====
+  const checkPageBreak = (requiredHeight) => {
+    if (yPos + requiredHeight > maxContentHeight) {
+      doc.addPage()
+      yPos = margin
+      return true
     }
+    return false
   }
-  
-  // Thousands
-  if (len > 3) {
-    const thousands = parseInt(numStr.substring(Math.max(0, len - 5), len - 3));
-    if (thousands > 0) {
-      words += convertTwoDigits(thousands, ones, tens, teens) + ' THOUSAND ';
-    }
-  }
-  
-  // Hundreds
-  if (len > 2) {
-    const hundreds = parseInt(numStr[len - 3]);
-    if (hundreds > 0) {
-      words += ones[hundreds] + ' HUNDRED ';
-    }
-  }
-  
-  // Last two digits
-  const lastTwo = parseInt(numStr.substring(len - 2));
-  if (lastTwo > 0) {
-    words += convertTwoDigits(lastTwo, ones, tens, teens);
-  }
-  
-  return words.trim();
-}
 
-function convertTwoDigits(num, ones, tens, teens) {
-  if (num < 10) return ones[num];
-  if (num < 20) return teens[num - 10];
-  return tens[Math.floor(num / 10)] + (num % 10 > 0 ? ' ' + ones[num % 10] : '');
+  const taxableValue = invoice.subtotal - invoice.discount
+  const gstAmount = taxableValue * (invoice.gst / 100)
+  const total = invoice.total
+  const totalQty = invoice.items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)
+
+  const itemRows = invoice.items.map((item, index) => ([
+    (index + 1).toString(),
+    item.description || '',
+    item.hsn || item.hsnCode || '',
+    `${item.quantity}`,
+    formatCurrencyForPDF(item.rate),
+    item.per || 'GMS',
+    formatCurrencyForPDF(item.amount)
+  ]))
+
+  const gstRow = ['', `IGST OUTPUT@${invoice.gst || 0}%`, '', '', '', '', formatCurrencyForPDF(gstAmount)]
+  const totalRow = ['', 'TOTAL', '', totalQty ? `${totalQty}` : '', '', '', formatCurrencyForPDF(total)]
+
+  const estimatedTableHeight = (itemRows.length + 2) * 8 + 12
+  checkPageBreak(estimatedTableHeight + 15)
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['S.NO', 'Description of Goods', 'HSN/SAC', 'Quantity', 'Rate', 'Per', 'Amount']],
+    body: itemRows.concat([gstRow, totalRow]),
+    margin: { left: margin, right: margin },
+    pageBreak: 'auto',
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.35,
+      halign: 'center',
+      valign: 'middle',
+      textColor: [0, 0, 0]
+    },
+    columnStyles: {
+      0: { cellWidth: 12 },
+      1: { cellWidth: 70, halign: 'left' },
+      2: { cellWidth: 18 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 22, halign: 'right' },
+      5: { cellWidth: 14 },
+      6: { cellWidth: 30, halign: 'right' }
+    },
+    headStyles: {
+      fillColor: [230, 230, 230],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontStyle: 'normal',
+      textColor: [0, 0, 0]
+    },
+    didParseCell: (data) => {
+      const isGST = data.row.index === itemRows.length
+      const isTotal = data.row.index === itemRows.length + 1
+      if (isGST) {
+        data.cell.styles.fontStyle = 'italic'
+      }
+      if (isTotal) {
+        data.cell.styles.fontStyle = 'bold'
+      }
+    }
+  })
+
+  yPos = doc.lastAutoTable.finalY + 4
+  
+
+  // ===== AMOUNT IN WORDS =====
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8.5)
+  doc.text('Amount Chargeable (in words)   E. & O.E', margin, yPos)
+  yPos += 5
+  doc.setFont(undefined, 'normal')
+  doc.text(`INR ${convertNumberToWords(Math.round(total))} ONLY`, margin, yPos)
+  yPos += 8
+
+  // ===== TAX BREAKDOWN TABLE =====
+  const taxHead = [
+    'Taxable Value',
+    { content: 'Integrated Tax', colSpan: 2, styles: { halign: 'center' } },
+    'Total Tax Amount'
+  ]
+  const taxHead2 = ['', 'Rate', 'Amount', '']
+  const taxBody = [
+    [
+      formatCurrencyForPDF(taxableValue),
+      `${invoice.gst}%`,
+      formatCurrencyForPDF(gstAmount),
+      formatCurrencyForPDF(gstAmount)
+    ]
+  ]
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [taxHead, taxHead2],
+    body: taxBody,
+    margin: { left: margin, right: margin },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.35,
+      halign: 'center',
+      textColor: [0, 0, 0]
+    },
+    headStyles: {
+      fillColor: [240, 240, 240],
+      fontStyle: 'bold',
+      textColor: [0, 0, 0]
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 36 },
+      1: { halign: 'center', cellWidth: 24 },
+      2: { halign: 'right', cellWidth: 28 },
+      3: { halign: 'right', cellWidth: 32 }
+    }
+  })
+
+  yPos = doc.lastAutoTable.finalY + 4
+
+  // Check page break before footer
+  checkPageBreak(20)
+
+  // Tax amount in words
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8.5)
+  doc.text('Tax Amount (in words) :', margin, yPos)
+  doc.setFont(undefined, 'normal')
+  doc.text(`INR ${convertNumberToWords(Math.round(gstAmount))} ONLY`, margin + 45, yPos)
+  yPos += 10
+
+  // ===== DECLARATION & SIGNATURE =====
+  const panY = yPos
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8)
+  doc.text(`Company's PAN   :   ${company.pan}`, margin, panY)
+  doc.text('For SRI RAM GEMS', pageWidth - margin - 50, panY)
+  yPos += 6
+  doc.text('Declaration :-', margin, yPos)
+  yPos += 4
+  doc.setFont(undefined, 'normal')
+  doc.setFontSize(7.5)
+  doc.text('We declare that this invoice shows the actual price of the', margin, yPos)
+  yPos += 3.5
+  doc.text('goods described and that all particulars are true and correct.', margin, yPos)
+
+  // Signature line
+  const sigY = panY + 20
+  doc.line(pageWidth - margin - 50, sigY, pageWidth - margin - 10, sigY)
+  doc.setFont(undefined, 'bold')
+  doc.setFontSize(8)
+  doc.text('Authorised Signatory', pageWidth - margin - 45, sigY + 5)
+
+  // ===== FOOTER ON ALL PAGES =====
+  const totalPages = doc.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    doc.setFontSize(7.5)
+    doc.setFont(undefined, 'bold')
+    doc.text('THIS IS A COMPUTER GENERATED INVOICE', pageWidth / 2, pageHeight - 4, { align: 'center' })
+  }
+
+  return doc
 }

@@ -36,23 +36,29 @@ model Client {
 }
 
 model Invoice {
-  id             Int      @id @default(autoincrement())
-  invoiceNumber  String   @map("invoice_number")
-  userId         Int      @map("user_id")
-  clientId       Int      @map("client_id")
-  issue_date     DateTime @map("issue_date")
-  due_date       DateTime @map("due_date")
-  status         String   @default("Sent")
-  subtotal       Float
-  gst            Float    @default(0)
-  discount       Float    @default(0)
-  total          Float
-  createdAt      DateTime @default(now()) @map("created_at")
+  id               Int      @id @default(autoincrement())
+  invoiceNumber    String   @map("invoice_number")
+  userId           Int      @map("user_id")
+  clientId         Int?     @map("client_id")
+  consignee_name   String?
+  consignee_address String?
+  consignee_contact String?
+  buyer_name       String?
+  buyer_address    String?
+  buyer_contact    String?
+  issue_date       DateTime @map("issue_date")
+  due_date         DateTime @map("due_date")
+  status           String   @default("Sent")
+  subtotal         Float
+  gst              Float    @default(0)
+  discount         Float    @default(0)
+  total            Float
+  createdAt        DateTime @default(now()) @map("created_at")
   
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  items          InvoiceItem[]
-  payments       Payment[]
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client           Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items            InvoiceItem[]
+  payments         Payment[]
 
   @@map("invoices")
 }
@@ -61,6 +67,7 @@ model InvoiceItem {
   id          Int     @id @default(autoincrement())
   invoiceId   Int     @map("invoice_id")
   description String
+  hsn         String  @default("7116")
   quantity    Float
   rate        Float
   amount      Float
