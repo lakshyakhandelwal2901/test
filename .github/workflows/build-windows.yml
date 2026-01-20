@@ -29,7 +29,7 @@ jobs:
       - name: Build Electron installer
         run: npm run build:electron
         env:
-          GH_TOKEN: ''
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}  
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
