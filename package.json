@@ -1,6 +1,8 @@
 {
   "name": "invoice-electron",
   "version": "1.0.0",
+  "description": "Invoice desktop app (Electron + Express + React)",
+  "author": "Invoice App Team",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -11,6 +13,7 @@
   "build": {
     "appId": "com.invoice.app",
     "productName": "InvoiceApp",
+    "publish": "never",
     "win": {
       "target": "nsis"
     },
